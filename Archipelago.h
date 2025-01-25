@@ -1,20 +1,33 @@
 #pragma once
 
+#include <random>
 #include <string>
 #include <vector>
 #include <map>
 #include <cstdint>
+#include <json/json.h>
+#include <json/reader.h>
+#include <json/value.h>
+#include <json/writer.h>
 #include <set>
 
 extern std::string ap_player_name;
 
-void AP_Init(const char*, const char*, const char*, const char*);
-void AP_Init(const char*);
-bool AP_IsInit();
-bool AP_IsConnected();
+extern "C"
+{
 
-void AP_Start();
-void AP_Stop();
+struct AP_State;
+
+AP_State* AP_New();
+void AP_Free(AP_State*);
+
+void AP_Init(AP_State*, const char*, const char*, const char*, const char*);
+void AP_InitSolo(AP_State*, const char*);
+bool AP_IsInit(AP_State*);
+bool AP_IsConnected(AP_State*);
+
+void AP_Start(AP_State*);
+void AP_Stop(AP_State*);
 
 struct AP_NetworkVersion {
     int major;
@@ -48,78 +61,78 @@ struct AP_NetworkPlayer {
 };
 
 // Set current client version
-void AP_SetClientVersion(AP_NetworkVersion*);
+void AP_SetClientVersion(AP_State*, AP_NetworkVersion*);
 
 /* Configuration Functions */
 
-void AP_EnableQueueItemRecvMsgs(bool);
+void AP_EnableQueueItemRecvMsgs(AP_State*, bool);
 
-void AP_SetDeathLinkSupported(bool);
+void AP_SetDeathLinkSupported(AP_State*, bool);
 
 /* Required Callback Functions */
 
 //Parameter Function must reset local state
-void AP_SetItemClearCallback(void (*f_itemclr)());
+void AP_SetItemClearCallback(AP_State*, void (*f_itemclr)());
 
 //Parameter Function must collect item id given with parameter
 //Second parameter indicates player who sent the item
 //Third parameter indicates whether or not to notify player
-void AP_SetItemRecvCallback(void (*f_itemrecv)(int64_t,int,bool));
+void AP_SetItemRecvCallback(AP_State*, void (*f_itemrecv)(int64_t,int,bool));
 
 //Parameter Function must mark given location id as checked
-void AP_SetLocationCheckedCallback(void (*f_locrecv)(int64_t));
+void AP_SetLocationCheckedCallback(AP_State*, void (*f_locrecv)(int64_t));
 
 /* Optional Callback Functions */
 
 //Parameter Function will be called when Death Link is received. Alternative to Pending/Clear usage
-void AP_SetDeathLinkRecvCallback(void (*f_deathrecv)());
+void AP_SetDeathLinkRecvCallback(AP_State*, void (*f_deathrecv)());
 
 // Parameter Function receives Slotdata of respective type
-void AP_RegisterSlotDataIntCallback(std::string, void (*f_slotdata)(int));
-void AP_RegisterSlotDataMapIntIntCallback(std::string, void (*f_slotdata)(std::map<int,int>));
-void AP_RegisterSlotDataRawCallback(std::string, void (*f_slotdata)(std::string));
+void AP_RegisterSlotDataIntCallback(AP_State*, std::string, void (*f_slotdata)(int));
+void AP_RegisterSlotDataMapIntIntCallback(AP_State*, std::string, void (*f_slotdata)(std::map<int,int>));
+void AP_RegisterSlotDataRawCallback(AP_State*, std::string, void (*f_slotdata)(std::string));
 
-int64_t AP_GetSlotDataInt(const char* key);
-const char* AP_GetSlotDataString(const char* key);
+int64_t AP_GetSlotDataInt(AP_State*, const char* key);
+const char* AP_GetSlotDataString(AP_State*, const char* key);
 
-bool AP_GetDataPkgReceived();
+bool AP_GetDataPkgReceived(AP_State*);
 
 // Send LocationScouts packet
-void AP_QueueLocationScout(int64_t location);
-void AP_RemoveQueuedLocationScout(int64_t location);
-void AP_QueueLocationScoutsAll();
-void AP_SendQueuedLocationScouts(int create_as_hint);
-void AP_SendLocationScoutsAll(int create_as_hint);
-void AP_SendLocationScouts(std::set<int64_t> locations, int create_as_hint);
+void AP_QueueLocationScout(AP_State*, int64_t location);
+void AP_RemoveQueuedLocationScout(AP_State*, int64_t location);
+void AP_QueueLocationScoutsAll(AP_State*);
+void AP_SendQueuedLocationScouts(AP_State*, int create_as_hint);
+void AP_SendLocationScoutsAll(AP_State*, int create_as_hint);
+void AP_SendLocationScouts(AP_State*, std::set<int64_t> locations, int create_as_hint);
 // Receive Function for LocationInfo
-void AP_SetLocationInfoCallback(void (*f_locrecv)(std::vector<AP_NetworkItem>));
+void AP_SetLocationInfoCallback(AP_State*, void (*f_locrecv)(std::vector<AP_NetworkItem>));
 
 /* Game Management Functions */
 
 // Sends LocationCheck for given index
-void AP_SendItem(int64_t location);
-void AP_SendItem(std::set<int64_t> const& locations);
+void AP_SendItem(AP_State*, int64_t location);
+void AP_SendItems(AP_State*, std::set<int64_t> const& locations);
 
 // Gives all Items/Locations in current game
-bool AP_GetLocationIsChecked(int64_t location_idx);
-size_t AP_GetReceivedItemsSize();
-int64_t AP_GetReceivedItem(size_t item_idx);
-int64_t AP_GetItemAtLocation(int64_t location_id);
-bool AP_GetLocationHasLocalItem(int64_t location_id);
-AP_ItemType AP_GetLocationItemType(int64_t location_id);
-std::string AP_GetLocationItemName(int64_t location_id);
-std::string AP_GetLocationItemPlayer(int64_t location_id);
-std::string AP_GetItemName(std::string game, int64_t id);
-std::string AP_GetLocationName(std::string game, int64_t id);
+bool AP_GetLocationIsChecked(AP_State*, int64_t location_idx);
+size_t AP_GetReceivedItemsSize(AP_State*);
+int64_t AP_GetReceivedItem(AP_State*, size_t item_idx);
+int64_t AP_GetItemAtLocation(AP_State*, int64_t location_id);
+bool AP_GetLocationHasLocalItem(AP_State*, int64_t location_id);
+AP_ItemType AP_GetLocationItemType(AP_State*, int64_t location_id);
+std::string AP_GetLocationItemName(AP_State*, int64_t location_id);
+std::string AP_GetLocationItemPlayer(AP_State*, int64_t location_id);
+std::string AP_GetItemName(AP_State*, std::string game, int64_t id);
+std::string AP_GetLocationName(AP_State*, std::string game, int64_t id);
 
 // Called when Story completed, sends StatusUpdate
-void AP_StoryComplete();
+void AP_StoryComplete(AP_State*);
 
 /* Deathlink Functions */
 
-bool AP_DeathLinkPending();
-void AP_DeathLinkClear();
-void AP_DeathLinkSend();
+bool AP_DeathLinkPending(AP_State*);
+void AP_DeathLinkClear(AP_State*);
+void AP_DeathLinkSend(AP_State*);
 
 /* Message Management Types */
 
@@ -156,13 +169,13 @@ struct AP_CountdownMessage : AP_Message {
 
 /* Message Management Functions */
 
-bool AP_IsMessagePending();
-AP_Message* AP_GetEarliestMessage();
-AP_Message* AP_GetLatestMessage();
-void AP_ClearEarliestMessage();
-void AP_ClearLatestMessage();
+bool AP_IsMessagePending(AP_State*);
+AP_Message* AP_GetEarliestMessage(AP_State*);
+AP_Message* AP_GetLatestMessage(AP_State*);
+void AP_ClearEarliestMessage(AP_State*);
+void AP_ClearLatestMessage(AP_State*);
 
-void AP_Say(std::string);
+void AP_Say(AP_State*, std::string);
 
 /* Connection Information Types */
 
@@ -190,65 +203,74 @@ struct AP_RoomInfo {
 
 /* Connection Information Functions */
 
-int AP_GetRoomInfo(AP_RoomInfo*);
-AP_ConnectionStatus AP_GetConnectionStatus();
-uint64_t AP_GetUUID();
-int AP_GetPlayerID();
+int AP_GetRoomInfo(AP_State*, AP_RoomInfo*);
+AP_ConnectionStatus AP_GetConnectionStatus(AP_State*);
+uint64_t AP_GetUUID(AP_State*);
+int AP_GetPlayerID(AP_State*);
 
 /* Serverside Data Types */
 
 enum struct AP_RequestStatus {
-    Pending, Done, Error
+    Pending = 0,
+    Done = 1,
+    Error = 2
 };
 
 enum struct AP_DataType {
-    Raw, Int, Double
+    Raw = 0,
+    Int = 1,
+    Double = 2
 };
 
 struct AP_GetServerDataRequest {
-    AP_RequestStatus status;
+    volatile AP_RequestStatus status;
     std::string key;
-    void* value;
+    char* value;
     AP_DataType type;
 };
 
 struct AP_DataStorageOperation {
     std::string operation;
-    void* value;
+    char* value;
 };
 
 struct AP_SetServerDataRequest {
-    AP_RequestStatus status;
+    volatile AP_RequestStatus status;
     std::string key;
     std::vector<AP_DataStorageOperation> operations;
-    void* default_value;
+    char* default_value;
     AP_DataType type;
     bool want_reply;
 };
 
 struct AP_SetReply {
     std::string key;
-    void* original_value;
-    void* value;
+    char* original_value;
+    char* value;
 };
 
 /* Serverside Data Functions */
 
 // Set and Receive Data
-void AP_SetServerData(AP_SetServerDataRequest* request);
-void AP_GetServerData(AP_GetServerDataRequest* request);
+void AP_SetServerData(AP_State*, AP_SetServerDataRequest* request);
+
+void AP_GetServerDataSync(AP_State*, const char* key);
 
 // This returns a string prefix, consistent across game connections and unique to the player slot.
 // Intended to be used for getting / setting private server data
 // No guarantees are made regarding the content of the prefix!
-std::string AP_GetPrivateServerDataPrefix();
+std::string AP_GetPrivateServerDataPrefix(AP_State*);
 
 // Parameter Function receives all SetReply's
 // ! Pointers in AP_SetReply struct only valid within function !
 // If values are required beyond that a copy is needed
-void AP_RegisterSetReplyCallback(void (*f_setreply)(AP_SetReply));
+void AP_RegisterSetReplyCallback(AP_State*, void (*f_setreply)(AP_SetReply));
 
 // Receive all SetReplys with Keys in parameter list
-void AP_SetNotify(std::map<std::string,AP_DataType>);
+void AP_SetNotifies(AP_State*, std::map<std::string,AP_DataType>);
 // Single Key version of above for convenience
-void AP_SetNotify(std::string, AP_DataType);
+void AP_SetNotify(AP_State*, std::string, AP_DataType);
+
+void AP_SetManageMemory(AP_State*, bool);
+
+}
