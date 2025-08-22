@@ -222,6 +222,7 @@ AP_ConnectionStatus AP_GetConnectionStatus(AP_State*);
 uint64_t AP_GetUUID(AP_State*);
 int AP_GetTeamID(AP_State*);
 int AP_GetPlayerID(AP_State*);
+const char* AP_GetPlayerName(AP_State*);
 
 /* Serverside Data Types */
 

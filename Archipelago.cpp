@@ -777,6 +777,10 @@ int AP_GetPlayerID(AP_State* state) {
     return state->ap_player_id;
 }
 
+const char* AP_GetPlayerName(AP_State* state) {
+    return state->ap_player_name.c_str();
+}
+
 void AP_SetServerData(AP_State* state, AP_SetServerDataRequest* request) {
     request->status = AP_RequestStatus::Pending;
 
