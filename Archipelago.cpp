@@ -108,6 +108,7 @@ struct AP_State
 
     // Vectors
     std::vector<int64_t> received_items;
+    std::vector<int64_t> received_item_types;
     std::vector<int64_t> sending_player_ids;
 
     // Callback function pointers
@@ -905,6 +906,10 @@ int64_t AP_GetReceivedItem(AP_State* state, size_t item_idx) {
     return state->received_items[item_idx];
 }
 
+int64_t AP_GetReceivedItemType(AP_State* state, size_t item_idx) {
+    return state->received_item_types[item_idx];
+}
+
 int64_t AP_GetSendingPlayer(AP_State* state, size_t item_idx) {
     return state->sending_player_ids[item_idx];
 }
@@ -1054,6 +1059,7 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
             }
 
             state->received_items.clear();
+            state->received_item_types.clear();
             state->sending_player_ids.clear();
 
             state->auth = true;
@@ -1292,11 +1298,19 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
             for (unsigned int j = 0; j < root[i]["items"].size(); j++) {
                 int64_t item_id = root[i]["items"][j]["item"].asInt64();
                 int sending_player_id = root[i]["items"][j]["player"].asInt();
+                int flags = root[i]["items"][j]["flags"].asInt();
+                int type = ITEM_TYPE_FILLER;
+                if (flags & 0b100 || flags & 0b001) {
+                    type = ITEM_TYPE_PROGRESSION;
+                } else if (flags & 0b010) {
+                    type = ITEM_TYPE_USEFUL;
+                }
                 notify = (item_idx == 0 && state->last_item_idx <= j && state->multiworld) || item_idx != 0;
                 if (state->getitemfunc) {
                     (*state->getitemfunc)(item_id, sending_player_id, notify);
                 }
                 state->received_items.push_back(item_id);
+                state->received_item_types.push_back(type);
                 state->sending_player_ids.push_back(sending_player_id);
                 if (state->queueitemrecvmsg && notify) {
                     AP_ItemRecvMessage* msg = new AP_ItemRecvMessage;
