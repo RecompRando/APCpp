@@ -46,14 +46,6 @@ AP_NetworkPlayer* getPlayer(AP_State* state, int team, int slot);
 extern "C"
 {
 
-struct CachedItem
-{
-    int64_t item;
-    int64_t location;
-    AP_ItemType type;
-    int64_t sending_player;
-};
-
 struct AP_State
 {
     bool init = false;
@@ -119,14 +111,12 @@ struct AP_State
 
     // Vectors
     std::vector<int64_t> received_items;
+    std::vector<int64_t> received_item_locations;
     std::vector<int64_t> received_item_types;
     std::vector<int64_t> sending_player_ids;
 
     // Mutexes
     std::mutex cache_mutex;
-
-    // Queues
-    std::deque<CachedItem> cached_items;
 
     // Callback function pointers
     void (*resetItemValues)();
@@ -535,12 +525,11 @@ void AP_SendItems(AP_State* state, std::set<int64_t> const& locations) {
         state->pending_locations.insert(idx);
         if (state->location_has_local_item[idx]) {
             int64_t item = state->location_to_item[idx];
-            CachedItem citem;
-            citem.item = item;
-            citem.location = idx;
-            citem.type = state->location_item_type[idx];
-            citem.sending_player = state->location_item_player_id[idx];
-            state->cached_items.push_back(citem);
+            int64_t type = state->location_item_type[idx];
+            int64_t sending_player = state->location_item_player_id[idx];
+            state->received_items.push_back(item);
+            state->received_item_types.push_back(type);
+            state->sending_player_ids.push_back(sending_player);
         }
     }
     state->cache_mutex.unlock();
@@ -933,7 +922,7 @@ const char* AP_GetItemNameFromID(AP_State* state, int64_t item_id) {
 
 size_t AP_GetReceivedItemsSize(AP_State* state) {
     state->cache_mutex.lock();
-    size_t size = state->received_items.size() + state->cached_items.size();
+    size_t size = state->received_items.size();
     state->cache_mutex.unlock();
     return size;
 }
@@ -941,29 +930,23 @@ size_t AP_GetReceivedItemsSize(AP_State* state) {
 int64_t AP_GetReceivedItem(AP_State* state, size_t item_idx) {
     int64_t item;
     state->cache_mutex.lock();
-    if (item_idx < state->received_items.size()) {
-        item = state->received_items[item_idx];
-        state->cache_mutex.unlock();
-        return item;
-    }
-
-    size_t cache_idx = item_idx - state->received_items.size();
-    item = state->cached_items[cache_idx].item;
+    item = state->received_items[item_idx];
     state->cache_mutex.unlock();
     return item;
+}
+
+int64_t AP_GetReceivedItemLocation(AP_State* state, size_t item_idx) {
+    int64_t location;
+    state->cache_mutex.lock();
+    location = state->received_item_locations[item_idx];
+    state->cache_mutex.unlock();
+    return location;
 }
 
 int64_t AP_GetReceivedItemType(AP_State* state, size_t item_idx) {
     int64_t type;
     state->cache_mutex.lock();
-    if (item_idx < state->received_items.size()) {
-        type = state->received_item_types[item_idx];
-        state->cache_mutex.unlock();
-        return type;
-    }
-
-    size_t cache_idx = item_idx - state->received_items.size();
-    type = state->cached_items[cache_idx].type;
+    type = state->received_item_types[item_idx];
     state->cache_mutex.unlock();
     return type;
 }
@@ -971,14 +954,7 @@ int64_t AP_GetReceivedItemType(AP_State* state, size_t item_idx) {
 int64_t AP_GetSendingPlayer(AP_State* state, size_t item_idx) {
     int64_t player;
     state->cache_mutex.lock();
-    if (item_idx < state->received_items.size()) {
-        player = state->sending_player_ids[item_idx];
-        state->cache_mutex.unlock();
-        return player;
-    }
-
-    size_t cache_idx = item_idx - state->received_items.size();
-    player = state->cached_items[cache_idx].sending_player;
+    player = state->sending_player_ids[item_idx];
     state->cache_mutex.unlock();
     return player;
 }
@@ -1367,6 +1343,7 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
             bool notify;
             for (unsigned int j = 0; j < root[i]["items"].size(); j++) {
                 int64_t item_id = root[i]["items"][j]["item"].asInt64();
+                int64_t location_id = root[i]["items"][j]["location"].asInt64();
                 int sending_player_id = root[i]["items"][j]["player"].asInt();
                 int flags = root[i]["items"][j]["flags"].asInt();
                 int type = ITEM_TYPE_FILLER;
@@ -1379,9 +1356,12 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
                 if (state->getitemfunc) {
                     (*state->getitemfunc)(item_id, sending_player_id, notify);
                 }
-                state->received_items.push_back(item_id);
-                state->received_item_types.push_back(type);
-                state->sending_player_ids.push_back(sending_player_id);
+                if (sending_player_id != state->ap_player_id || location_id <= 0) {
+                    state->received_items.push_back(item_id);
+                    state->received_item_locations.push_back(location_id);
+                    state->received_item_types.push_back(type);
+                    state->sending_player_ids.push_back(sending_player_id);
+                }
                 if (state->queueitemrecvmsg && notify) {
                     AP_ItemRecvMessage* msg = new AP_ItemRecvMessage;
                     AP_NetworkPlayer* sender = getPlayer(state, state->ap_team_id, sending_player_id);
@@ -1416,15 +1396,6 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
                 state->checked_locations.insert(loc_id);
                 if (state->pending_locations.count(loc_id) != 0) {
                     state->pending_locations.erase(loc_id);
-                    if (state->cached_items.size() > 0) {
-                        for (auto it = state->cached_items.begin(); it != state->cached_items.end(); ++it) {
-                            if ((*it).location == loc_id) {
-                                // delete here since we're breaking anyway
-                                state->cached_items.erase(it);
-                                break;
-                            }
-                        }
-                    }
                 }
             }
             state->cache_mutex.unlock();
