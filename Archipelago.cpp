@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <filesystem>
+#include <mutex>
 
 constexpr int AP_OFFLINE_SLOT = 1;
 #define AP_OFFLINE_NAME "You"
@@ -44,6 +45,13 @@ AP_NetworkPlayer* getPlayer(AP_State* state, int team, int slot);
 
 extern "C"
 {
+
+struct CachedItem
+{
+    int64_t item;
+    int64_t location;
+    AP_ItemType type;
+};
 
 struct AP_State
 {
@@ -105,11 +113,18 @@ struct AP_State
     std::set<int64_t> removed_scout_locations;
 
     std::set<int64_t> checked_locations;
+    std::set<int64_t> pending_locations;
 
     // Vectors
     std::vector<int64_t> received_items;
     std::vector<int64_t> received_item_types;
     std::vector<int64_t> sending_player_ids;
+
+    // Mutexes
+    std::mutex cache_mutex;
+
+    // Queues
+    std::deque<CachedItem> cached_items;
 
     // Callback function pointers
     void (*resetItemValues)();
@@ -512,9 +527,20 @@ void AP_SendItem(AP_State* state, int64_t location_idx) {
 }
 
 void AP_SendItems(AP_State* state, std::set<int64_t> const& locations) {
+    state->cache_mutex.lock();
     for (int64_t idx : locations) {
         //printf("AP: Checked '%s'.\n", getLocationName(ap_game, idx).c_str());
+        state->pending_locations.insert(idx);
+        if (state->location_has_local_item[idx]) {
+            int64_t item = state->location_to_item[idx];
+            CachedItem pair;
+            pair.item = item;
+            pair.location = idx;
+            pair.type = state->location_item_type[idx];
+            state->cached_items.push_back(pair);
+        }
     }
+    state->cache_mutex.unlock();
     if (state->multiworld) {
         Json::Value req_t;
         req_t[0]["cmd"] = "LocationChecks";
@@ -891,7 +917,11 @@ std::string AP_GetPrivateServerDataPrefix(AP_State* state) {
 }
 
 bool AP_GetLocationIsChecked(AP_State* state, int64_t location_idx) {
-    return state->checked_locations.find(location_idx) != state->checked_locations.end();
+    state->cache_mutex.lock();
+    bool is_checked = state->checked_locations.find(location_idx) != state->checked_locations.end() ||
+                      state->pending_locations.find(location_idx) != state->pending_locations.end();
+    state->cache_mutex.unlock();
+    return is_checked;
 }
 
 const char* AP_GetItemNameFromID(AP_State* state, int64_t item_id) {
@@ -899,11 +929,25 @@ const char* AP_GetItemNameFromID(AP_State* state, int64_t item_id) {
 }
 
 size_t AP_GetReceivedItemsSize(AP_State* state) {
-    return state->received_items.size();
+    state->cache_mutex.lock();
+    size_t size = state->received_items.size() + state->cached_items.size();
+    state->cache_mutex.unlock();
+    return size;
 }
 
 int64_t AP_GetReceivedItem(AP_State* state, size_t item_idx) {
-    return state->received_items[item_idx];
+    int64_t item;
+    state->cache_mutex.lock();
+    if (item_idx < state->received_items.size()) {
+        state->cache_mutex.unlock();
+        item = state->received_items[item_idx];
+        return item;
+    }
+
+    size_t cache_idx = item_idx - state->received_items.size();
+    item = state->cached_items[cache_idx].item;
+    state->cache_mutex.unlock();
+    return item;
 }
 
 int64_t AP_GetReceivedItemType(AP_State* state, size_t item_idx) {
@@ -1337,14 +1381,27 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
             //~ AP_SetServerData(state, &request);
         } else if (cmd == "RoomUpdate") {
             //Sync checks with server
+            state->cache_mutex.lock();
             for (unsigned int j = 0; j < root[i]["checked_locations"].size(); j++) {
                 int64_t loc_id = root[i]["checked_locations"][j].asInt64();
                 if (state->checklocfunc) {
                     (*state->checklocfunc)(loc_id);
                 }
                 state->checked_locations.insert(loc_id);
-                
+                if (state->pending_locations.count(loc_id) != 0) {
+                    state->pending_locations.erase(loc_id);
+                    if (state->cached_items.size() > 0) {
+                        for (auto it = state->cached_items.begin(); it != state->cached_items.end(); ++it) {
+                            if ((*it).location == loc_id) {
+                                // delete here since we're breaking anyway
+                                state->cached_items.erase(it);
+                                break;
+                            }
+                        }
+                    }
+                }
             }
+            state->cache_mutex.unlock();
             //Update Player aliases if present
             for (auto itr : root[i].get("players", Json::arrayValue)) {
                 state->map_players[itr["slot"].asInt()].alias = itr["alias"].asString();
