@@ -942,8 +942,8 @@ int64_t AP_GetReceivedItem(AP_State* state, size_t item_idx) {
     int64_t item;
     state->cache_mutex.lock();
     if (item_idx < state->received_items.size()) {
-        state->cache_mutex.unlock();
         item = state->received_items[item_idx];
+        state->cache_mutex.unlock();
         return item;
     }
 
@@ -957,8 +957,8 @@ int64_t AP_GetReceivedItemType(AP_State* state, size_t item_idx) {
     int64_t type;
     state->cache_mutex.lock();
     if (item_idx < state->received_items.size()) {
-        state->cache_mutex.unlock();
         type = state->received_item_types[item_idx];
+        state->cache_mutex.unlock();
         return type;
     }
 
@@ -972,8 +972,8 @@ int64_t AP_GetSendingPlayer(AP_State* state, size_t item_idx) {
     int64_t player;
     state->cache_mutex.lock();
     if (item_idx < state->received_items.size()) {
-        state->cache_mutex.unlock();
         player = state->sending_player_ids[item_idx];
+        state->cache_mutex.unlock();
         return player;
     }
 
