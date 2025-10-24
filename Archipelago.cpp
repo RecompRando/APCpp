@@ -51,6 +51,7 @@ struct CachedItem
     int64_t item;
     int64_t location;
     AP_ItemType type;
+    int64_t sending_player;
 };
 
 struct AP_State
@@ -102,6 +103,7 @@ struct AP_State
     std::map<int64_t, AP_ItemType> location_item_type;
     std::map<int64_t, std::string> location_item_name;
     std::map<int64_t, std::string> location_item_player;
+    std::map<int64_t, int64_t> location_item_player_id;
     std::map<std::string, std::string> slot_data;
     std::map<std::string, Json::Value> slot_data_raw;
 
@@ -533,11 +535,12 @@ void AP_SendItems(AP_State* state, std::set<int64_t> const& locations) {
         state->pending_locations.insert(idx);
         if (state->location_has_local_item[idx]) {
             int64_t item = state->location_to_item[idx];
-            CachedItem pair;
-            pair.item = item;
-            pair.location = idx;
-            pair.type = state->location_item_type[idx];
-            state->cached_items.push_back(pair);
+            CachedItem citem;
+            citem.item = item;
+            citem.location = idx;
+            citem.type = state->location_item_type[idx];
+            citem.sending_player = state->location_item_player_id[idx];
+            state->cached_items.push_back(citem);
         }
     }
     state->cache_mutex.unlock();
@@ -951,11 +954,33 @@ int64_t AP_GetReceivedItem(AP_State* state, size_t item_idx) {
 }
 
 int64_t AP_GetReceivedItemType(AP_State* state, size_t item_idx) {
-    return state->received_item_types[item_idx];
+    int64_t type;
+    state->cache_mutex.lock();
+    if (item_idx < state->received_items.size()) {
+        state->cache_mutex.unlock();
+        type = state->received_item_types[item_idx];
+        return type;
+    }
+
+    size_t cache_idx = item_idx - state->received_items.size();
+    type = state->cached_items[cache_idx].type;
+    state->cache_mutex.unlock();
+    return type;
 }
 
 int64_t AP_GetSendingPlayer(AP_State* state, size_t item_idx) {
-    return state->sending_player_ids[item_idx];
+    int64_t player;
+    state->cache_mutex.lock();
+    if (item_idx < state->received_items.size()) {
+        state->cache_mutex.unlock();
+        player = state->sending_player_ids[item_idx];
+        return player;
+    }
+
+    size_t cache_idx = item_idx - state->received_items.size();
+    player = state->cached_items[cache_idx].sending_player;
+    state->cache_mutex.unlock();
+    return player;
 }
 
 int64_t AP_GetSlotDataInt(AP_State* state, const char* key) {
@@ -1330,6 +1355,7 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
                 state->location_has_local_item[item.location] = item.player == state->ap_player_id;
                 state->location_item_name[item.location] = item.itemName;
                 state->location_item_player[item.location] = item.playerName;
+                state->location_item_player_id[item.location] = item.player;
             }
             if (state->locinfofunc) {
                 state->locinfofunc(locations);
