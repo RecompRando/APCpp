@@ -510,7 +510,7 @@ bool AP_IsConnected(AP_State* state) {
 }
 
 bool AP_ConnectionError(AP_State* state) {
-    return false;
+    return state->notfound || state->refused;
 }
 
 bool AP_IsScouted(AP_State* state) {
