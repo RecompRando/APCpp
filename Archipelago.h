@@ -25,6 +25,8 @@ void AP_Init(AP_State*, const char*, const char*, const char*, const char*);
 void AP_InitSolo(AP_State*, const char* filename, const char* seed);
 bool AP_IsInit(AP_State*);
 bool AP_IsConnected(AP_State*);
+bool AP_ConnectionError(AP_State*);
+bool AP_IsScouted(AP_State*);
 
 void AP_Start(AP_State*);
 void AP_Stop(AP_State*);

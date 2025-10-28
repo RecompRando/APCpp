@@ -52,9 +52,10 @@ struct AP_State
     bool auth = false;
     bool refused = false;
     bool multiworld = true;
-    bool isSSL = false;
+    bool isSSL = true;
     bool ssl_success = false;
     bool connected = false;
+    bool scouted = false;
     bool notfound = false;
     bool datapkg_received = false;
     bool queue_all_locations;
@@ -174,6 +175,7 @@ bool firstInit = false;
 void AP_Init(AP_State* state, const char* ip, const char* game, const char* player_name, const char* passwd) {
     state->multiworld = true;
     state->notfound = false;
+    state->refused = false;
     state->queue_all_locations = false;
     state->scout_queued_locations = false;
     state->scout_all_locations = false;
@@ -199,11 +201,19 @@ void AP_Init(AP_State* state, const char* ip, const char* game, const char* play
         ix::initNetSystem();
         firstInit = true;
     }
-    state->webSocket.setUrl("ws://" + state->ap_ip);
+    state->webSocket.setUrl("wss://" + state->ap_ip);
     state->webSocket.setOnMessageCallback([=](const ix::WebSocketMessagePtr& msg)
         {
-            if (msg->errorInfo.retries-1 >= MAX_RETRIES) {
-                state->notfound = true;
+            state->notfound = false;
+            state->refused = false;
+            if (msg->errorInfo.retries >= MAX_RETRIES) {
+                if (/*msg->errorInfo.retries-1 >= 1 && */state->isSSL) {
+                    //printf("AP: SSL connection failed. Attempting encrypted...\n");
+                    state->webSocket.setUrl("ws://" + state->ap_ip);
+                    state->isSSL = false;
+                } else if (msg->errorInfo.retries >= 2*MAX_RETRIES) {
+                    state->notfound = true;
+                }
             }
             if (msg->type == ix::WebSocketMessageType::Message)
             {
@@ -225,11 +235,6 @@ void AP_Init(AP_State* state, const char* ip, const char* game, const char* play
                     state->map_server_data.erase(itr.first);
                 }
                 //printf("AP: Error connecting to Archipelago. Retries: %d\n", msg->errorInfo.retries-1);
-                if (/*msg->errorInfo.retries-1 >= 1 && */!state->isSSL) {
-                    //printf("AP: SSL connection failed. Attempting encrypted...\n");
-                    state->webSocket.setUrl("wss://" + state->ap_ip);
-                    state->isSSL = true;
-                }
             }
         }
     );
@@ -504,6 +509,14 @@ bool AP_IsConnected(AP_State* state) {
     return state->connected;
 }
 
+bool AP_ConnectionError(AP_State* state) {
+    return false;
+}
+
+bool AP_IsScouted(AP_State* state) {
+    return state->scouted;
+}
+
 void AP_SetClientVersion(AP_State* state, AP_NetworkVersion* version) {
     state->client_version.major = version->major;
     state->client_version.minor = version->minor;
@@ -525,9 +538,11 @@ void AP_SendItems(AP_State* state, std::set<int64_t> const& locations) {
         state->pending_locations.insert(idx);
         if (state->location_has_local_item[idx]) {
             int64_t item = state->location_to_item[idx];
+            int64_t location = idx;
             int64_t type = state->location_item_type[idx];
             int64_t sending_player = state->location_item_player_id[idx];
             state->received_items.push_back(item);
+            state->received_item_locations.push_back(location);
             state->received_item_types.push_back(type);
             state->sending_player_ids.push_back(sending_player);
         }
@@ -1104,6 +1119,7 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
             }
 
             state->received_items.clear();
+            state->received_item_locations.clear();
             state->received_item_types.clear();
             state->sending_player_ids.clear();
 
@@ -1333,6 +1349,21 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
                 state->location_item_player[item.location] = item.playerName;
                 state->location_item_player_id[item.location] = item.player;
             }
+            state->cache_mutex.lock();
+            for (int64_t loc_id : state->checked_locations) {
+                if (state->location_has_local_item[loc_id]) {
+                    int64_t item = state->location_to_item[loc_id];
+                    int64_t location = loc_id;
+                    int64_t type = state->location_item_type[loc_id];
+                    int64_t sending_player = state->location_item_player_id[loc_id];
+                    state->received_items.push_back(item);
+                    state->received_item_locations.push_back(location);
+                    state->received_item_types.push_back(type);
+                    state->sending_player_ids.push_back(sending_player);
+                }
+            }
+            state->cache_mutex.unlock();
+            state->scouted = true;
             if (state->locinfofunc) {
                 state->locinfofunc(locations);
             } else {
