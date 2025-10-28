@@ -1350,16 +1350,18 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
                 state->location_item_player_id[item.location] = item.player;
             }
             state->cache_mutex.lock();
-            for (int64_t loc_id : state->checked_locations) {
-                if (state->location_has_local_item[loc_id]) {
-                    int64_t item = state->location_to_item[loc_id];
-                    int64_t location = loc_id;
-                    int64_t type = state->location_item_type[loc_id];
-                    int64_t sending_player = state->location_item_player_id[loc_id];
-                    state->received_items.push_back(item);
-                    state->received_item_locations.push_back(location);
-                    state->received_item_types.push_back(type);
-                    state->sending_player_ids.push_back(sending_player);
+            if (!state->scouted) {
+                for (int64_t loc_id : state->checked_locations) {
+                    if (state->location_has_local_item[loc_id]) {
+                        int64_t item = state->location_to_item[loc_id];
+                        int64_t location = loc_id;
+                        int64_t type = state->location_item_type[loc_id];
+                        int64_t sending_player = state->location_item_player_id[loc_id];
+                        state->received_items.push_back(item);
+                        state->received_item_locations.push_back(location);
+                        state->received_item_types.push_back(type);
+                        state->sending_player_ids.push_back(sending_player);
+                    }
                 }
             }
             state->cache_mutex.unlock();
