@@ -204,8 +204,6 @@ void AP_Init(AP_State* state, const char* ip, const char* game, const char* play
     state->webSocket.setUrl("wss://" + state->ap_ip);
     state->webSocket.setOnMessageCallback([=](const ix::WebSocketMessagePtr& msg)
         {
-            state->notfound = false;
-            state->refused = false;
             if (msg->errorInfo.retries >= MAX_RETRIES) {
                 if (/*msg->errorInfo.retries-1 >= 1 && */state->isSSL) {
                     //printf("AP: SSL connection failed. Attempting encrypted...\n");
