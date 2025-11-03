@@ -62,6 +62,7 @@ struct AP_State
     bool scout_queued_locations;
     bool scout_all_locations;
     bool manage_memory = true;
+    int ping_interval = 5;
     int scout_queued_locations_hint;
     int scout_all_locations_hint;
     int ap_team_id;
@@ -170,6 +171,13 @@ void AP_Free(AP_State* state) {
     delete state;
 }
 
+void AP_SetPingInterval(AP_State* state, int interval) {
+    state->ping_interval = interval;
+    if (state->init) {
+        state->webSocket.setPingInterval(interval);
+    }
+}
+
 bool firstInit = false;
 
 void AP_Init(AP_State* state, const char* ip, const char* game, const char* player_name, const char* passwd) {
@@ -237,7 +245,7 @@ void AP_Init(AP_State* state, const char* ip, const char* game, const char* play
         }
     );
     state->webSocket.enablePerMessageDeflate();
-    state->webSocket.setPingInterval(5);
+    state->webSocket.setPingInterval(state->ping_interval);
 
     AP_NetworkPlayer archipelago {
         -1,
