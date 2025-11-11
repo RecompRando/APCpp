@@ -91,6 +91,7 @@ struct AP_State
     std::map<int64_t, AP_NetworkPlayer> map_players;
     std::map<std::pair<std::string,int64_t>, std::string> map_location_id_name;
     std::map<std::pair<std::string,int64_t>, std::string> map_item_id_name;
+    std::map<int64_t, std::string> player_id_to_game_name;
     std::map<int64_t, std::string> item_to_name;
     std::map<int64_t, int64_t> location_to_item;
     std::map<int64_t, bool> location_has_local_item;
@@ -1036,6 +1037,10 @@ const char* AP_GetPlayerFromSlot(AP_State* state, int64_t slot) {
     return state->map_players[slot].alias.c_str();
 }
 
+const char* AP_GetPlayerGameFromSlot(AP_State* state, int64_t slot) {
+    return state->player_id_to_game_name[slot].c_str();
+}
+
 }
 
 // PRIV
@@ -1154,6 +1159,7 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
                 player.game = root[i]["slot_info"][std::to_string(player.slot)]["game"].asString();
                 state->map_players[root[i]["players"][j]["slot"].asInt()] = player;
                 state->ap_team_id = root[i]["team"].asInt();
+                state->player_id_to_game_name[player.slot] = player.game;
             }
             if ((root[i]["slot_data"].get("death_link", false).asBool() || root[i]["slot_data"].get("DeathLink", false).asBool()) && state->deathlinksupported) state->enable_deathlink = true;
             if (root[i]["slot_data"]["death_link_amnesty"] != Json::nullValue)
