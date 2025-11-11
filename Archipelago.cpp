@@ -1129,13 +1129,6 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
                 (*state->resetItemValues)();
             }
 
-            state->cache_mutex.lock();
-            state->received_items.clear();
-            state->received_item_locations.clear();
-            state->received_item_types.clear();
-            state->sending_player_ids.clear();
-            state->cache_mutex.unlock();
-
             state->auth = true;
             state->ssl_success = state->auth && state->isSSL;
             state->refused = false;
