@@ -1034,7 +1034,7 @@ const char* AP_GetLocationItemPlayer(AP_State* state, int64_t location_id) {
 }
 
 int64_t AP_GetLocationItemPlayerID(AP_State* state, int64_t location_id) {
-    return state->location_item_player_id[location_id].c_str();
+    return state->location_item_player_id[location_id];
 }
 
 const char* AP_GetPlayerFromSlot(AP_State* state, int64_t slot) {
