@@ -141,6 +141,7 @@ bool AP_GetLocationHasLocalItem(AP_State*, int64_t location_id);
 AP_ItemType AP_GetLocationItemType(AP_State*, int64_t location_id);
 const char* AP_GetLocationItemName(AP_State*, int64_t location_id);
 const char* AP_GetLocationItemPlayer(AP_State*, int64_t location_id);
+int64_t AP_GetLocationItemPlayerID(AP_State* state, int64_t location_id);
 const char* AP_GetPlayerFromSlot(AP_State*, int64_t slot);
 const char* AP_GetPlayerGameFromSlot(AP_State* state, int64_t slot);
 
