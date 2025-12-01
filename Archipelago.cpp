@@ -55,6 +55,7 @@ struct AP_State
     bool isSSL = true;
     bool ssl_success = false;
     bool connected = false;
+    bool skip_first_receive = false;
     bool scouted = false;
     bool notfound = false;
     bool datapkg_received = false;
@@ -237,6 +238,7 @@ void AP_Init(AP_State* state, const char* ip, const char* game, const char* play
             {
                 state->datapkg_received = false;
                 state->auth = false;
+                state->skip_first_receive = true;
                 for (std::pair<std::string, AP_GetServerDataRequest*> itr : state->map_server_data) {
                     itr.second->status = AP_RequestStatus::Error;
                     state->map_server_data.erase(itr.first);
@@ -1385,7 +1387,10 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
         } else if (cmd == "ReceivedItems") {
             int item_idx = root[i]["index"].asInt();
             bool notify;
-            for (unsigned int j = 0; j < root[i]["items"].size(); j++) {
+            state->cache_mutex.lock();
+            unsigned int initial_j = state->skip_first_receive ? state->received_items.size() : 0;
+            state->cache_mutex.unlock();
+            for (unsigned int j = initial_j; j < root[i]["items"].size(); j++) {
                 int64_t item_id = root[i]["items"][j]["item"].asInt64();
                 int64_t location_id = root[i]["items"][j]["location"].asInt64();
                 int sending_player_id = root[i]["items"][j]["player"].asInt();
@@ -1418,6 +1423,7 @@ bool parse_response(AP_State* state, std::string msg, std::string &request) {
                     state->messageQueue.push_back(msg);
                 }
             }
+            state->skip_first_receive = false;
             state->last_item_idx = item_idx == 0 ? root[i]["items"].size() : state->last_item_idx + root[i]["items"].size();
             //~ AP_SetServerDataRequest request;
             //~ request.key = "APCppLastRecv" + state->ap_player_name + std::to_string(state->ap_player_id);
