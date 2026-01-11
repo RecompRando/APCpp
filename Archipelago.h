@@ -112,6 +112,9 @@ uintptr_t AP_AccessSlotDataRawDict(AP_State* state, uintptr_t jsonValue, const c
 int64_t AP_AccessSlotDataRawInt(AP_State* state, uintptr_t jsonValue);
 const char* AP_AccessSlotDataRawString(AP_State* state, uintptr_t jsonValue);
 
+uintptr_t AP_IterSlotDataRawDict(AP_State* state, uintptr_t jsonValue);
+bool AP_IterSlotDataRawDictNext(AP_State* state, uintptr_t it_ptr, uintptr_t* dict_key_out, uintptr_t* dict_value_out);
+
 char* AP_GetDataStorageSync(AP_State* state, const char* key);
 void AP_SetDataStorageSync(AP_State* state, const char* key, char* value);
 void AP_SetDataStorageAsync(AP_State* state, const char* key, char* value);
