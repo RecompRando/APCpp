@@ -64,6 +64,13 @@ struct AP_NetworkPlayer {
     std::string game;
 };
 
+struct AP_DictIterator {
+    const Json::Value* dict;
+    Json::Value::const_iterator it;
+    uintptr_t current_key;
+    uintptr_t current_value;
+};
+
 // Set current client version
 void AP_SetClientVersion(AP_State*, AP_NetworkVersion*);
 
