@@ -1000,6 +1000,11 @@ uintptr_t AP_AccessSlotDataRawArray(AP_State* state, uintptr_t jsonValue, size_t
     return (uintptr_t) value;
 }
 
+bool AP_AccessSlotDataRawDictHasMember(AP_State* state, uintptr_t jsonValue, const char* key) {
+    const Json::Value value = *((Json::Value*) jsonValue);
+    return value.isMember(key);
+}
+
 uintptr_t AP_AccessSlotDataRawDict(AP_State* state, uintptr_t jsonValue, const char* key) {
     const Json::Value* value = &(*((Json::Value*) jsonValue))[key];
     return (uintptr_t) value;

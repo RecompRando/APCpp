@@ -108,6 +108,7 @@ const char* AP_GetSlotDataString(AP_State*, const char* key);
 
 uintptr_t AP_GetSlotDataRaw(AP_State* state, const char* key);
 uintptr_t AP_AccessSlotDataRawArray(AP_State* state, uintptr_t jsonValue, size_t index);
+bool AP_AccessSlotDataRawDictHasMember(AP_State* state, uintptr_t jsonValue, const char* key);
 uintptr_t AP_AccessSlotDataRawDict(AP_State* state, uintptr_t jsonValue, const char* key);
 int64_t AP_AccessSlotDataRawInt(AP_State* state, uintptr_t jsonValue);
 const char* AP_AccessSlotDataRawString(AP_State* state, uintptr_t jsonValue);
