@@ -1010,7 +1010,7 @@ uintptr_t AP_AccessSlotDataRawDict(AP_State* state, uintptr_t jsonValue, const c
     return (uintptr_t) value;
 }
 
-uintptr_t AP_IterSlotDataRawDict(AP_State* state, uintptr_t jsonValue) {
+AP_DictIterator* AP_IterSlotDataRawDict(AP_State* state, uintptr_t jsonValue) {
     const Json::Value* dict = &(*((Json::Value*) jsonValue));
     Json::Value::const_iterator dict_it = dict->begin();
 
@@ -1019,12 +1019,10 @@ uintptr_t AP_IterSlotDataRawDict(AP_State* state, uintptr_t jsonValue) {
     ret_it->current_key = 0;
     ret_it->current_value = 0;
     memcpy(&ret_it->it, &dict_it, sizeof(Json::Value::const_iterator));
-    return (uintptr_t) ret_it;
+    return ret_it;
 }
 
-bool AP_IterSlotDataRawDictNext(AP_State* state, uintptr_t it_ptr, uintptr_t* dict_key_out, uintptr_t* dict_value_out) {
-    AP_DictIterator* it = (AP_DictIterator*) it_ptr;
-
+bool AP_IterSlotDataRawDictNext(AP_State* state, AP_DictIterator* dict, AP_DictIterator* it, uintptr_t* dict_key_out, uintptr_t* dict_value_out) {
     if (state->manage_memory)
     {
         if (it->current_key != 0)
@@ -1040,7 +1038,8 @@ bool AP_IterSlotDataRawDictNext(AP_State* state, uintptr_t it_ptr, uintptr_t* di
 
     if (it->it == it->dict->end())
     {
-        delete it;
+        it->current_key = 0;
+        it->current_value = 0;
         return false;
     }
 
@@ -1056,6 +1055,23 @@ bool AP_IterSlotDataRawDictNext(AP_State* state, uintptr_t it_ptr, uintptr_t* di
 
     ++(it->it);
     return true;
+}
+
+void AP_IterSlotDataRawDictClose(AP_State* state, AP_DictIterator* dict, AP_DictIterator* it) {
+    if (state->manage_memory)
+    {
+        if (it->current_key != 0)
+        {
+            delete (Json::Value*) it->current_key;
+        }
+
+        if (it->current_value != 0)
+        {
+            delete (Json::Value*) it->current_value;
+        }
+
+        delete it;
+    }
 }
 
 int64_t AP_AccessSlotDataRawInt(AP_State* state, uintptr_t jsonValue) {
